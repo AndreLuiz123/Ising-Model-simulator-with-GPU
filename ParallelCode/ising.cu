@@ -44,46 +44,18 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
     int dE=0;
     int dE_current = 0; 
     int dE_new = 0;
+    bool accept = false;
 
-    if(white)
-    {
-      if((threadIdx.x%2 == 0 && threadIdx.y%2 == 0) || (threadIdx.x%2 != 0 && threadIdx.y%2 != 0)){
-
-        //Calculate delta E
-        if(threadIdx.x != 0){
-          dE_new += new_spin*(lattice[threadIdx.y*N + threadIdx.x - 1]);
-          dE_current += current_spin*(lattice[threadIdx.y*N + threadIdx.x - 1]);
-        }
-        if(threadIdx.x != N-1){
-          dE_new += new_spin*(lattice[threadIdx.y*N + threadIdx.x + 1]);
-          dE_current += current_spin*(lattice[threadIdx.y*N + threadIdx.x + 1]);
-        }
-        if(threadIdx.y != 0){
-          dE_new += new_spin*(lattice[(threadIdx.y-1)*N + threadIdx.x]);
-          dE_current += current_spin*(lattice[(threadIdx.y-1)*N + threadIdx.x]);
-        }
-        if(threadIdx.y != N-1){
-          dE_new += new_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);
-          dE_current += current_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);   
-        }
-        
-        dE = -1*J*(dE_new - dE_current);
-
-        if(dE <= 0){
-          lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
-        }else{
-          float boltz_dist = -dE/Temp; 
-          float probability = expf(boltz_dist);
-          float alpha = fminf(1,probability);
-          if(randoms[threadIdx.y*N + threadIdx.x] < alpha){
-            lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
-          }
-        }
-      }
+    if(white){
+      if((threadIdx.x%2 == 0 && threadIdx.y%2 == 0) || (threadIdx.x%2 != 0 && threadIdx.y%2 != 0))
+        accept = true;
     }else{
-      if((threadIdx.x%2 != 0 && threadIdx.y%2 == 0) || (threadIdx.x%2 == 0 && threadIdx.y%2 != 0)){
+      if((threadIdx.x%2 != 0 && threadIdx.y%2 == 0) || (threadIdx.x%2 == 0 && threadIdx.y%2 != 0))
+        accept = true;
+    }
 
-        //Calculate delta E
+    if(accept){
+      //Calculate delta E
         if(threadIdx.x != 0){
           dE_new += new_spin*(lattice[threadIdx.y*N + threadIdx.x - 1]);
           dE_current += current_spin*(lattice[threadIdx.y*N + threadIdx.x - 1]);
@@ -104,7 +76,6 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
         dE = -1*J*(dE_new - dE_current);
 
         if(dE <= 0){
-          //printf("dE(%d) < 0\n", dE);
           lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
         }else{
           float boltz_dist = -dE/Temp; 
@@ -114,7 +85,6 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
             lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
           }
         }
-      }
     }
   }
 }
