@@ -64,7 +64,7 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
         }
         if(threadIdx.y != N-1){
           dE_new += new_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);
-          dE_current += current_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x - 1]);   
+          dE_current += current_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);   
         }
         
         dE = -1*J*(dE_new - dE_current);
@@ -98,7 +98,7 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
         }
         if(threadIdx.y != N-1){
           dE_new += new_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);
-          dE_current += current_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x - 1]);   
+          dE_current += current_spin*(lattice[(threadIdx.y+1)*N + threadIdx.x]);   
         }
         
         dE = -1*J*(dE_new - dE_current);
@@ -111,7 +111,6 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
           float probability = expf(boltz_dist);
           float alpha = fminf(1,probability);
           if(randoms[threadIdx.y*N + threadIdx.x] < alpha){
-            //printf("random(%f) < alpha(%f) - (probability = %f; boltz = %f) - (dE = %d; Temp = %f)\n",randoms[threadIdx.y*N + threadIdx.x],alpha,probability,boltz_dist,dE, Temp);
             lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
           }
         }
@@ -119,6 +118,56 @@ __global__ void update_spin_checkboard(int *lattice, float *randoms, int J, floa
     }
   }
 }
+
+__global__ void update_spin_double_buffering(int *lattice, int *old_lattice, float *randoms, int J, float Temp,int N){
+  if(threadIdx.x < N && threadIdx.y < N){
+      int current_spin = lattice[threadIdx.y*N + threadIdx.x];
+      int new_spin = lattice[threadIdx.y*N + threadIdx.x]*-1;
+      int dE=0;
+      int dE_current = 0; 
+      int dE_new = 0;
+
+      //Calculate delta E
+      if(threadIdx.x != 0){
+        dE_new += new_spin*(old_lattice[threadIdx.y*N + threadIdx.x - 1]);
+        dE_current += current_spin*(old_lattice[threadIdx.y*N + threadIdx.x - 1]);
+      }
+      if(threadIdx.x != N-1){
+        dE_new += new_spin*(old_lattice[threadIdx.y*N + threadIdx.x + 1]);
+        dE_current += current_spin*(old_lattice[threadIdx.y*N + threadIdx.x + 1]);
+      }
+      if(threadIdx.y != 0){
+        dE_new += new_spin*(old_lattice[(threadIdx.y-1)*N + threadIdx.x]);
+        dE_current += current_spin*(old_lattice[(threadIdx.y-1)*N + threadIdx.x]);
+      }
+      if(threadIdx.y != N-1){
+        dE_new += new_spin*(old_lattice[(threadIdx.y+1)*N + threadIdx.x]);
+        dE_current += current_spin*(old_lattice[(threadIdx.y+1)*N + threadIdx.x]);   
+      }
+      
+      dE = -1*J*(dE_new - dE_current);
+
+      if(dE <= 0){
+        lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
+      }else{
+        float boltz_dist = -dE/Temp; 
+        float probability = expf(boltz_dist);
+        float alpha = fminf(1,probability);
+        if(randoms[threadIdx.y*N + threadIdx.x] < alpha){
+          lattice[threadIdx.y*N + threadIdx.x] = new_spin; 
+        }
+      }
+  }      
+}
+
+__global__ void update_old_lattice(int *lattice, int *old_lattice, int N){
+
+  if(threadIdx.x < N && threadIdx.y < N){
+    old_lattice[threadIdx.y*N + threadIdx.x] = lattice[threadIdx.y*N + threadIdx.x];
+  }
+
+}
+
 //Calcula os valores de capa spin hamiltoniano
 __global__ void calculate_spin_hamiltonian(int *lattice, int N, int *hamiltonian){
   
@@ -152,6 +201,25 @@ int calculate_hamiltonian(int *hamiltonian, int N, int J){
 
   return result;
 
+}
+
+int calculate_hamiltonian2(int *lattice, int N, int J){
+  int energy = 0;
+  for(int i=0; i<N; i++){
+    for(int j=0; j<N; j++){
+      int current_spin = lattice[N*j + i];
+      if(i!=0)
+        energy+= lattice[N*j + i-1]*current_spin;
+      if(i!=N-1)
+        energy+= lattice[N*j + i+1]*current_spin;
+      if(j!=0)
+        energy+= lattice[N*(j-1) + i]*current_spin;
+      if(j!=N-1)
+        energy+= lattice[N*(j+1) + i]*current_spin;
+    }
+  }
+  energy*=-1*J;
+  return energy;
 }
 
 //Soma de elementos do modelo ising e tira a métia - paralelizar depois
@@ -195,41 +263,12 @@ void init_matrix(int *lattice, int N, int proportion=0){
   }
 }
 
-void init_white_black_matrix(int *lattice, int *white_matrix, int *black_matrix,int N){
-  for(int i=0; i<N; i++){
-    for(int j=0; j<N; j++){
-      if((i%2==0 && j%2==0) || (i%2!=0 && j%2!=0)){
-        white_matrix[j*N/2 + i] = lattice[j*N + i];
-      }else{
-        black_matrix[j*N/2 + i] = lattice[j*N + i];
-      }
-    }
-  }
-}
-
-int calculate_hamiltonian2(int *lattice, int N, int J){
-  int energy = 0;
-  for(int i=0; i<N; i++){
-    for(int j=0; j<N; j++){
-      int current_spin = lattice[N*j + i];
-      if(i!=0)
-        energy+= lattice[N*j + i-1]*current_spin;
-      if(i!=N-1)
-        energy+= lattice[N*j + i+1]*current_spin;
-      if(j!=0)
-        energy+= lattice[N*(j-1) + i]*current_spin;
-      if(j!=N-1)
-        energy+= lattice[N*(j+1) + i]*current_spin;
-    }
-  }
-  energy*=-1*J;
-  return energy;
-}
-
 int main(int argc, char *argv[]){
   
   printf("Número de argumentos: %d\n", argc);
   //Parâmetros do sistema
+  int approach = 0;
+  int proportion = 750;
   int steps = 1000;
   int J = 1;
   int N = 32;
@@ -237,6 +276,14 @@ int main(int argc, char *argv[]){
 
   for (int i = 0; i < argc; i++) {
       printf("Argumento [%d]: %s\n", i, argv[i]);
+
+      if(strcmp(argv[i], "-approach") == 0){
+        approach = atoi(argv[i+1]);
+      }  
+
+      if(strcmp(argv[i], "-P") == 0){
+        proportion = atoi(argv[i+1]);
+      }  
 
       if(strcmp(argv[i], "-steps") == 0){
         steps = atoi(argv[i+1]);
@@ -255,7 +302,7 @@ int main(int argc, char *argv[]){
       }
   }
 
-  printf("J:%d, Temp:%f, N:%d, steps:%d\n",J, Temp, N, steps);
+  printf("approach:%d(0:checkboard; 1:doublebuffering), proportion: %d, J:%d, Temp:%f, N:%d, steps:%d\n",approach, proportion, J, Temp, N, steps);
 
   //Valores estatísticos
   int energy = 0;
@@ -263,6 +310,7 @@ int main(int argc, char *argv[]){
   
   //Matrizes
   int *ising_matrix;
+  int *ising_matrix_old;
   int *hamiltonian_matrix;
   float *ising_rand;
 
@@ -283,6 +331,12 @@ int main(int argc, char *argv[]){
     return -1;
   }
 
+  err = cudaMallocManaged(&ising_matrix_old,bytes);
+  if (err != cudaSuccess) {
+    cout << "Failed to allocate memory for ising_matrix: " << cudaGetErrorString(err) << endl;
+    return -1;
+  }
+
   err = cudaMallocManaged(&ising_rand,bytes_float);
   if (err != cudaSuccess) {
     cout << "Failed to allocate memory for ising_matrix: " << cudaGetErrorString(err) << endl;
@@ -295,18 +349,6 @@ int main(int argc, char *argv[]){
     return -1;
   }
 
-  /*err = cudaMallocManaged(&white_matrix,bytes_half);
-  if (err != cudaSuccess) {
-    cout << "Failed to allocate memory for ising_matrix: " << cudaGetErrorString(err) << endl;
-    return -1;
-  }
-
-  err = cudaMallocManaged(&black_matrix,bytes_half);
-  if (err != cudaSuccess) {
-    cout << "Failed to allocate memory for ising_matrix: " << cudaGetErrorString(err) << endl;
-    return -1;
-  }*/
-
   err = cudaMallocManaged(&hamiltonian_matrix,bytes);
   if (err != cudaSuccess) {
     cout << "Failed to allocate memory for ising_matrix: " << cudaGetErrorString(err) << endl;
@@ -317,9 +359,7 @@ int main(int argc, char *argv[]){
 
 
   cout<<"Initializating ising matrix:"<<endl;
-  init_matrix(ising_matrix,N,350);
-
-  //init_white_black_matrix(ising_matrix, white_matrix, black_matrix, N);
+  init_matrix(ising_matrix,N,proportion);
   
   cudaDeviceSynchronize();
 
@@ -332,44 +372,63 @@ int main(int argc, char *argv[]){
   //Checkboard monte-carlo
   FILE *statistics;
   statistics = fopen("statistics.txt","w");
-  for(int i=0; i<steps; i++){
-    
-    setup_kernel<<<blocos, threads_blocos>>>(ising_rand_states, N,time(NULL)+i+100);
-    generate_randoms<<<blocos, threads_blocos>>>(ising_rand_states, N, ising_rand);
-    //printf("first random: %f\n", ising_rand[0]);
-    cudaDeviceSynchronize();
-    update_spin_checkboard<<<blocos,threads_blocos>>>(ising_matrix,ising_rand, J, Temp, N, white);
-    cudaDeviceSynchronize();
-    update_spin_checkboard<<<blocos,threads_blocos>>>(ising_matrix,ising_rand, J, Temp, N, !white);
-    cudaDeviceSynchronize();
 
-    //Calculate hamiltonian
-    //calculate_spin_hamiltonian<<<blocos,threads_blocos>>>(ising_matrix, N, hamiltonian_matrix);
-    //cudaDeviceSynchronize();
-    energy = calculate_hamiltonian2(ising_matrix,N,J);
-    //energy = calculate_hamiltonian2(hami
-
-
-    //Calculate magnetization
-    magnetization = calculate_magnetization(ising_matrix,N);
-    
-    //Print results:
-    //printf("---------------------------------\n");
-    //print_lattice(ising_matrix,N);
-    //printf("Energy:%d; Magnetization:%f\n",energy,magnetization);
-    //printf("---------------------------------\n");
-    
-    char mensagem[50];
-    sprintf(mensagem, "%d,%d,%.3f\n", i, energy, magnetization);
-    fputs(mensagem, statistics);
-    
+  if(approach == 0){
+    //Checkboard
+    for(int i=0; i<steps; i++){
+      
+      setup_kernel<<<blocos, threads_blocos>>>(ising_rand_states, N,time(NULL)+i+100);
+      generate_randoms<<<blocos, threads_blocos>>>(ising_rand_states, N, ising_rand);
+      
+      cudaDeviceSynchronize();
+      update_spin_checkboard<<<blocos,threads_blocos>>>(ising_matrix,ising_rand, J, Temp, N, white);
+      cudaDeviceSynchronize();
+      update_spin_checkboard<<<blocos,threads_blocos>>>(ising_matrix,ising_rand, J, Temp, N, !white);
+      cudaDeviceSynchronize();
+            
+      //calculate_spin_hamiltonian<<<blocos,threads_blocos>>>(ising_matrix,N,hamiltonian_matrix);
+      //cudaMemcpy(hamiltonian_local, hamiltonian_matrix, bytes, cudaMemcpyDeviceToHost);
+      //energy = calculate_hamiltonian(hamiltonian_matrix,N,J);      
+      energy = calculate_hamiltonian2(ising_matrix,N,J);
+      magnetization = calculate_magnetization(ising_matrix,N);
+      
+      char mensagem[50];
+      sprintf(mensagem, "%d,%d,%.3f\n", i, energy, magnetization);
+      fputs(mensagem, statistics);
+      
+    }
+  }else if(approach == 1){
+    //Double buffering
+    ising_matrix_old = ising_matrix;
+    for(int i=0; i<steps; i++){
+      
+      setup_kernel<<<blocos, threads_blocos>>>(ising_rand_states, N,time(NULL)+i+100);
+      generate_randoms<<<blocos, threads_blocos>>>(ising_rand_states, N, ising_rand);
+  
+      cudaDeviceSynchronize();
+      update_spin_double_buffering<<<blocos,threads_blocos>>>(ising_matrix,ising_matrix_old,ising_rand, J, Temp, N);
+      cudaDeviceSynchronize();
+      update_old_lattice<<<blocos,threads_blocos>>>(ising_matrix,ising_matrix_old, N);
+      cudaDeviceSynchronize();
+      
+      //calculate_spin_hamiltonian<<<blocos,threads_blocos>>>(ising_matrix,N,hamiltonian_matrix);
+      //cudaMemcpy(hamiltonian_local, hamiltonian_matrix, bytes, cudaMemcpyDeviceToHost);
+      //energy = calculate_hamiltonian(hamiltonian_matrix,N,J);
+      energy = calculate_hamiltonian2(ising_matrix,N,J);
+      magnetization = calculate_magnetization(ising_matrix,N);
+      
+      char mensagem[50];
+      sprintf(mensagem, "%d,%d,%.3f\n", i, energy, magnetization);
+      fputs(mensagem, statistics);
+      
+    }
   }
   fclose(statistics);
 
   cudaFree(ising_matrix);
+  cudaFree(ising_matrix_old);
   cudaFree(ising_rand);
   cudaFree(ising_rand_states);
   cudaFree(hamiltonian_matrix);
-  
   cout<<"PROGRAM COMPLETED OK"<<endl;
 }
