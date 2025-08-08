@@ -138,7 +138,7 @@ __global__ void update_old_lattice(int *lattice, int *old_lattice, int N){
 
 }
 
-//Calcula os valores de capa spin hamiltoniano
+//Calcula os valores de cada spin hamiltoniano
 __global__ void calculate_spin_hamiltonian(int *lattice, int N, int *hamiltonian){
   
   if(threadIdx.x < N && threadIdx.y < N){
@@ -192,7 +192,7 @@ int calculate_hamiltonian2(int *lattice, int N, int J){
   return energy;
 }
 
-//Soma de elementos do modelo ising e tira a métia - paralelizar depois
+//Soma de elementos do modelo ising e tira a média - paralelizar depois
 float calculate_magnetization(int *lattice, int N){
   
   float result=0;
