@@ -12,6 +12,5 @@ Rode `./main`. Será gerado um arquivo `./statistics.txt` com o valor da energia
 - `-proportion` : Número entre 0 e 1000 que determina a razão entre spins 1 e -1 do estado inicial da malha de spins. Quanto mais próximo de 1000, mais spins iguais a 1 aparecem;
 - `-J` : Energia entre spins do sistema
 
-
 ### Observações
 O tratamento das entradas ainda precisa ser aprimorado. Sendo assim, até o momento, sempre adicione um número após a chamada dos parâmetros do ./main.
