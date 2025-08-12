@@ -339,10 +339,12 @@ int main(int argc, char *argv[]){
   setup_kernel<<<blocos, threads_blocos>>>(ising_rand_states, N,time(NULL));
   generate_randoms<<<blocos, threads_blocos>>>(ising_rand_states, N, ising_rand);
    
+  clock_t t,t_total;
+  t_total = clock();
   //Checkboard monte-carlo
   FILE *statistics;
   statistics = fopen("statistics.txt","w");
-
+  t= clock();
   if(approach == 0){
     //Checkboard
     for(int i=0; i<steps; i++){
@@ -401,6 +403,8 @@ int main(int argc, char *argv[]){
       
     }
   }
+  t = clock() - t;
+  printf("Tempo isingStep:%f\n",(float)t/CLOCKS_PER_SEC);
   fclose(statistics);
 
   cudaFree(ising_matrix);
@@ -408,5 +412,8 @@ int main(int argc, char *argv[]){
   cudaFree(ising_rand);
   cudaFree(ising_rand_states);
   cudaFree(hamiltonian_matrix);
+  
+  t_total = clock() - t_total;
+  printf("Tempo total:%f\n",(float)t_total/CLOCKS_PER_SEC);
   cout<<"PROGRAM COMPLETED OK"<<endl;
 }
