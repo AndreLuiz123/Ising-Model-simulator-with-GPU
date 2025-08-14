@@ -15,4 +15,4 @@ Rode `./main`. Será gerado um arquivo `./statistics.txt` com o valor da energia
 
 
 ### Observações
-O tratamento das entradas ainda precisa ser aprimorado. Sendo assim, até o momento, sempre adicione um número após a chamada dos parâmetros do `./main`. Também cenários com `-N` > 32 não foram testados, portanto evite-os.
+O tratamento das entradas ainda precisa ser aprimorado. Sendo assim, até o momento, sempre adicione um número após a chamada dos parâmetros do `./main`. Preferencialmente, utilize números múltiplos de 32 para o parâmetro `-N`.
