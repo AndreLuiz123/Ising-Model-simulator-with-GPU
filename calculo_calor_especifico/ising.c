@@ -65,13 +65,13 @@ void calculate_hamiltonian(Ising *model, int N, float a){
       J1*model->spins[(i+N-1)%N][j]*current_spin +
       J1*model->spins[(i+1)%N][j]*current_spin +
       J2*model->spins[(i+N-2)%N][j]*current_spin +
-      J2*model->spins[(i+2)%N][j]*current_spin +
+      J2*model->spins[(i+2)%N][j]*current_spin;
     }
   }
   model->energy*=-0.5;
 }
 
-void isingStep(Ising *X_t, float Temp, int N){
+void isingStep(Ising *X_t, float Temp, int N, float a){
     float dE=0, dEy=0, dEx=0;
  
     //Rotate random spin
@@ -82,24 +82,27 @@ void isingStep(Ising *X_t, float Temp, int N){
     #endif
     int current_Y_spin = X_t->spins[i][j]*-1;
 
+    float J0 = X->J;
+    float J1 = (1-a)*J0;
+    float J2 = -1*J0;
     //Calculate delta E
-    if(i!=0){
-      dEy+= X_t->spins[i-1][j]*current_Y_spin;
-      dEx+= X_t->spins[i-1][j]*X_t->spins[i][j];
-    }
-    if(i!=N-1){
-      dEy+= X_t->spins[i+1][j]*current_Y_spin;
-      dEx+= X_t->spins[i+1][j]*X_t->spins[i][j];
-    }
-    if(j!=0){
-      dEy+= X_t->spins[i][j-1]*current_Y_spin;
-      dEx+= X_t->spins[i][j-1]*X_t->spins[i][j];
-    }
-    if(j!=N-1){
-      dEy+= X_t->spins[i][j+1]*current_Y_spin;
-      dEx+= X_t->spins[i][j+1]*X_t->spins[i][j];      
-    }
-    dE = -1*X_t->J*(dEy - dEx);
+    dEy = 
+      J0*X->spins[i][(j+N-1)%N]*current_Y_spin +
+      J0*X->spins[i][(j+1)%N]*current_Y_spin +
+      J1*X->spins[(i+N-1)%N][j]*current_Y_spin +
+      J1*X->spins[(i+1)%N][j]*current_Y_spin +
+      J2*X->spins[(i+N-2)%N][j]*current_Y_spin +
+      J2*X->spins[(i+2)%N][j]*current_Y_spin;
+
+    dEx = 
+      J0*X->spins[i][(j+N-1)%N]*X_t->spins[i][j] +
+      J0*X->spins[i][(j+1)%N]*X_t->spins[i][j] +
+      J1*X->spins[(i+N-1)%N][j]*X_t->spins[i][j] +
+      J1*X->spins[(i+1)%N][j]*X_t->spins[i][j] +
+      J2*X->spins[(i+N-2)%N][j]*X_t->spins[i][j] +
+      J2*X->spins[(i+2)%N][j]*X_t->spins[i][j];
+
+    dE = -0.5*(dEy - dEx);
     
     //Metropolis step
     if(dE<0){
@@ -110,7 +113,7 @@ void isingStep(Ising *X_t, float Temp, int N){
       X_t->energy += dE;
       X_t->spin_sum += 2*current_Y_spin;
     }else{
-      float U = ((rand() % 1000) + 1)*0.001;
+      float U = (rand() / (float)RAND_MAX);
       float boltz_dist = -dE/Temp;
       float probability = exp(boltz_dist);
       float alpha = fmin(1,probability);
