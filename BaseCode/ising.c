@@ -195,7 +195,7 @@ void print_model(Ising *X, int M, int N){
 int main(int argc, char **argv) {
 
     int proportion = 750;
-    unsigned int steps = 1000000;
+    unsigned int mcs = 1000000; //flips por spin
     int M = 32, N = 32;
     float Temperatura = 5;
 
@@ -215,8 +215,8 @@ int main(int argc, char **argv) {
         proportion = atoi(argv[i+1]);
       }  
 
-      if(strcmp(argv[i], "-steps") == 0){
-        steps = atoi(argv[i+1]);
+      if(strcmp(argv[i], "-mcs") == 0){
+        mcs = atoi(argv[i+1]);
       }      
 
       if(strcmp(argv[i], "-M") == 0){
@@ -235,6 +235,10 @@ int main(int argc, char **argv) {
         Temperatura = atof(argv[i+1]);
       }
     }
+
+    int steps = M*N*mcs;
+    //int initialization_steps = M*N*mcs/5;
+    //int specific_heat_collecting_steps = M*N*mcs - initialization_steps;
 
     X.spins = allocate_spins(M,N);
     
