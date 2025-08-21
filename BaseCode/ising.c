@@ -4,6 +4,7 @@
 #include <time.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 //#define N 32
 //#define Temperatura 10
 //#define DEBUG
@@ -156,24 +157,7 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
     #endif
     int current_Y_spin = X_t->spins[i][j]*-1;
 
-    //Calculate delta E
-    /*if(i!=0){
-      dEy+= X_t->spins[i-1][j]*current_Y_spin;
-      dEx+= X_t->spins[i-1][j]*X_t->spins[i][j];
-    }
-    if(i!=M-1){
-      dEy+= X_t->spins[i+1][j]*current_Y_spin;
-      dEx+= X_t->spins[i+1][j]*X_t->spins[i][j];
-    }
-    if(j!=0){
-      dEy+= X_t->spins[i][j-1]*current_Y_spin;
-      dEx+= X_t->spins[i][j-1]*X_t->spins[i][j];
-    }
-    if(j!=N-1){
-      dEy+= X_t->spins[i][j+1]*current_Y_spin;
-      dEx+= X_t->spins[i][j+1]*X_t->spins[i][j];      
-    }*/
-    dE = calculate_dE(X_t, i, j, M, N, torus);//-1*X_t->J*(dEy - dEx);
+    dE = calculate_dE(X_t, i, j, M, N, torus);
     
     //Metropolis step
     if(dE<0){
@@ -201,7 +185,16 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
 
 void monte_carlo_execution(Ising *model, int Temperatura, int M, int N,int steps, bool torus){
     FILE *statistics;
-    statistics = fopen("statistics.txt","w");
+
+    int status = mkdir("results", 0777);
+
+    if (status == 0) {
+      printf("Novo diretório results criado com sucesso!\n");
+    } else {
+      perror("Verificando se diretório 'results' já existe. Se existir, as estatísticas serão enviadas para ele, se não, houve um erro na criação do diretório");
+    }
+
+    statistics = fopen("results/statistics.txt","w");
     if(statistics == NULL){
       printf("Can't open file");
     }else{
