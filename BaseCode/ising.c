@@ -49,7 +49,7 @@ void calculate_spin_sum(Ising *model, int M, int N){
     model->spin_sum+=model->spins[i][j];
 }
 
-void calculate_hamiltonian(Ising *model, int M, int N){
+void calculate_hamiltonian_classic_boundary(Ising *model, int M, int N){
 
   model->energy = 0;
   for(int i=0; i<M; i++){
@@ -68,8 +68,66 @@ void calculate_hamiltonian(Ising *model, int M, int N){
   model->energy*=-model->J;
 }
 
+float calculate_dE_classic_boundary(Ising *model ,int i, int j, int M, int N){
+    
+    float dE = 0;
+    float dEy = 0;
+    float dEx = 0;
+    int new_spin = model->spins[i][j]*-1;
+    int current_spin = model->spins[i][j];
+    //Calculate delta E
+    if(i!=0){
+      dEy+= model->spins[i-1][j]*new_spin;
+      dEx+= model->spins[i-1][j]*current_spin;
+    }
+    if(i!=M-1){
+      dEy+= model->spins[i+1][j]*new_spin;
+      dEx+= model->spins[i+1][j]*current_spin;
+    }
+    if(j!=0){
+      dEy+= model->spins[i][j-1]*new_spin;
+      dEx+= model->spins[i][j-1]*current_spin;
+    }
+    if(j!=N-1){
+      dEy+= model->spins[i][j+1]*new_spin;
+      dEx+= model->spins[i][j+1]*current_spin;      
+    }
+
+    dE = -1*model->J*(dEy - dEx);
+
+    return dE;
+}
+
+void calculate_hamiltonian_torus_boundary(Ising *model, int M, int N){
+  float energy = 0;
+  for(int i=0; i<M; i++){
+    for(int j=0; j<N; j++){
+      int current_spin = model->spins[i][j];
+      energy += 
+      model->spins[(i+M-1)%M][j]*current_spin +
+      model->spins[(i+1)%M][j]*current_spin + 
+      model->spins[i][(j+N-1)%N]*current_spin +
+      model->spins[i][(j+1)%N]*current_spin;
+    }
+  }
+  energy*=-model->J;
+  model->energy = energy;
+}
+
+float calculate_dE_torus_boundary(Ising *model ,int i, int j, int M, int N){
+    float dE = 0;
+    //Calculate delta E
+    double neighbor_interaction =
+    model->spins[(i + M - 1) % M][j] + model->spins[(i + 1) % M][j]+
+    model->spins[i][(j + N - 1) % N] + model->spins[i][(j + 1) % N];
+
+    dE = 2.0 *  model->spins[i][j]* neighbor_interaction;
+
+    return dE;
+}
+
 void isingStep(Ising *X_t, float Temp, int M, int N){
-    float dE=0, dEy=0, dEx=0;
+    float dE=0;
  
     //Rotate random spin
     int i=(rand() % M);
@@ -80,7 +138,7 @@ void isingStep(Ising *X_t, float Temp, int M, int N){
     int current_Y_spin = X_t->spins[i][j]*-1;
 
     //Calculate delta E
-    if(i!=0){
+    /*if(i!=0){
       dEy+= X_t->spins[i-1][j]*current_Y_spin;
       dEx+= X_t->spins[i-1][j]*X_t->spins[i][j];
     }
@@ -95,8 +153,8 @@ void isingStep(Ising *X_t, float Temp, int M, int N){
     if(j!=N-1){
       dEy+= X_t->spins[i][j+1]*current_Y_spin;
       dEx+= X_t->spins[i][j+1]*X_t->spins[i][j];      
-    }
-    dE = -1*X_t->J*(dEy - dEx);
+    }*/
+    dE = calculate_dE_torus_boundary(X_t, i, j, M, N);//-1*X_t->J*(dEy - dEx);
     
     //Metropolis step
     if(dE<0){
@@ -188,7 +246,7 @@ int main(int argc, char **argv) {
     X.energy = 0;
     X.spin_sum = 0;
 
-    calculate_hamiltonian(&X,M,N);
+    calculate_hamiltonian_torus_boundary(&X,M,N);
     calculate_spin_sum(&X,M,N);
     #ifdef DEBUG
     printf("X\nenergy: %f\n",X.energy);
