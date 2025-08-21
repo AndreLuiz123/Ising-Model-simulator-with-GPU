@@ -14,24 +14,24 @@ typedef struct{
   float J;
 }Ising;
 
-int ** allocate_spins(int N){
-  int **matrix = malloc(N * sizeof(int *));
-  for(int i=0; i<N; i++){
+int ** allocate_spins(int M,int N){
+  int **matrix = malloc(M * sizeof(int *));
+  for(int i=0; i<M; i++){
     matrix[i] = malloc(N * sizeof(int));
   }
   return matrix;
 }
 
-void free_spins(int **matrix, int N){
-  for(int i=0; i<N; i++){
+void free_spins(int **matrix, int M){
+  for(int i=0; i<M; i++){
     free(matrix[i]);
   }
   free(matrix);
 }
 
 
-void create_spin_lattice(Ising *model, int proportion, int N){
-  for(int i=0; i<N; i++){
+void create_spin_lattice(Ising *model, int proportion, int M, int N){
+  for(int i=0; i<M; i++){
     for(int j=0; j<N; j++){
       float random = (rand() % 1000) + 1;
       if(random >= proportion)
@@ -42,21 +42,22 @@ void create_spin_lattice(Ising *model, int proportion, int N){
   }
 }
 
-void calculate_spin_sum(Ising *model, int N){
+void calculate_spin_sum(Ising *model, int M, int N){
  model->spin_sum = 0;
- for(int i=0; i<N; i++)
+ for(int i=0; i<M; i++)
   for(int j=0; j<N; j++)
     model->spin_sum+=model->spins[i][j];
 }
 
-void calculate_hamiltonian(Ising *model, int N){
+void calculate_hamiltonian(Ising *model, int M, int N){
+
   model->energy = 0;
-  for(int i=0; i<N; i++){
+  for(int i=0; i<M; i++){
     for(int j=0; j<N; j++){
       int current_spin = model->spins[i][j];
       if(i!=0)
         model->energy+= model->spins[i-1][j]*current_spin;
-      if(i!=N-1)
+      if(i!=M-1)
         model->energy+= model->spins[i+1][j]*current_spin;
       if(j!=0)
         model->energy+= model->spins[i][j-1]*current_spin;
@@ -67,11 +68,11 @@ void calculate_hamiltonian(Ising *model, int N){
   model->energy*=-model->J;
 }
 
-void isingStep(Ising *X_t, float Temp, int N){
+void isingStep(Ising *X_t, float Temp, int M, int N){
     float dE=0, dEy=0, dEx=0;
  
     //Rotate random spin
-    int i=(rand() % N);
+    int i=(rand() % M);
     int j=(rand() % N);
     #ifdef DEBUG
     printf("Rotate (%d,%d)\n",i,j);
@@ -83,7 +84,7 @@ void isingStep(Ising *X_t, float Temp, int N){
       dEy+= X_t->spins[i-1][j]*current_Y_spin;
       dEx+= X_t->spins[i-1][j]*X_t->spins[i][j];
     }
-    if(i!=N-1){
+    if(i!=M-1){
       dEy+= X_t->spins[i+1][j]*current_Y_spin;
       dEx+= X_t->spins[i+1][j]*X_t->spins[i][j];
     }
@@ -121,8 +122,8 @@ void isingStep(Ising *X_t, float Temp, int N){
     }
 }
 
-void print_model(Ising *X, int N){
-  for(int j=0; j<N; j++){
+void print_model(Ising *X, int M, int N){
+  for(int j=0; j<M; j++){
     for(int i=0; i<N; i++){
       if(X->spins[i][j] == -1)
         printf("%d,",X->spins[i][j]);
@@ -137,7 +138,7 @@ int main(int argc, char **argv) {
 
     int proportion = 750;
     unsigned int steps = 1000000;
-    int N = 32;
+    int M = 32, N = 32;
     float Temperatura = 5;
 
     clock_t t,t_total;
@@ -159,7 +160,11 @@ int main(int argc, char **argv) {
       if(strcmp(argv[i], "-steps") == 0){
         steps = atoi(argv[i+1]);
       }      
-      
+
+      if(strcmp(argv[i], "-M") == 0){
+        M = atoi(argv[i+1]);
+      }
+
       if(strcmp(argv[i], "-N") == 0){
         N = atoi(argv[i+1]);
       }
@@ -173,18 +178,18 @@ int main(int argc, char **argv) {
       }
     }
 
-    X.spins = allocate_spins(N);
+    X.spins = allocate_spins(M,N);
     
 
     t = clock();
-    create_spin_lattice(&X,proportion,N);
+    create_spin_lattice(&X,proportion,M,N);
     t = clock() - t;
     printf("Tempo create_lattice:%f\n",(float)t/CLOCKS_PER_SEC);
     X.energy = 0;
     X.spin_sum = 0;
 
-    calculate_hamiltonian(&X,N);
-    calculate_spin_sum(&X,N);
+    calculate_hamiltonian(&X,M,N);
+    calculate_spin_sum(&X,M,N);
     #ifdef DEBUG
     printf("X\nenergy: %f\n",X.energy);
     //print_model(&X,N);
@@ -197,10 +202,10 @@ int main(int argc, char **argv) {
     }else{
       t = clock();
       for(int i=0; i<steps; i++){
-        isingStep(&X,Temperatura,N);
+        isingStep(&X,Temperatura,M,N);
         //Escreve no documento
         char mensagem[50];
-        sprintf(mensagem, "%d,%.5f,%.3f\n", i, X.energy, X.spin_sum/(N*N));
+        sprintf(mensagem, "%d,%.5f,%.3f\n", i, X.energy, X.spin_sum/(M*N));
         fputs(mensagem, statistics);
       }    
       t = clock() - t;
