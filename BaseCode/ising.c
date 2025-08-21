@@ -180,6 +180,27 @@ void isingStep(Ising *X_t, float Temp, int M, int N){
     }
 }
 
+void monte_carlo_execution(Ising *model, int Temperatura, int M, int N,int steps){
+    FILE *statistics;
+    statistics = fopen("statistics.txt","w");
+    if(statistics == NULL){
+      printf("Can't open file");
+    }else{
+      for(int i=0; i<steps; i++){
+        isingStep(model,Temperatura,M,N);
+        //Escreve no documento
+        char mensagem[50];
+        sprintf(mensagem, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+        fputs(mensagem, statistics);
+      }    
+    }
+    fclose(statistics); 
+}
+
+void specific_heat_calculation(){
+
+}
+
 void print_model(Ising *X, int M, int N){
   for(int j=0; j<M; j++){
     for(int i=0; i<N; i++){
@@ -202,7 +223,6 @@ int main(int argc, char **argv) {
     clock_t t,t_total;
     t_total = clock();
     srand(time(NULL));
-    FILE *statistics;
     
     //Prepara o modelo
     Ising X;
@@ -258,22 +278,11 @@ int main(int argc, char **argv) {
     #endif
     
     //Executa o simulador
-    statistics = fopen("statistics.txt","w");
-    if(statistics == NULL){
-      printf("Can't open file");
-    }else{
-      t = clock();
-      for(int i=0; i<steps; i++){
-        isingStep(&X,Temperatura,M,N);
-        //Escreve no documento
-        char mensagem[50];
-        sprintf(mensagem, "%d,%.5f,%.3f\n", i, X.energy, X.spin_sum/(M*N));
-        fputs(mensagem, statistics);
-      }    
-      t = clock() - t;
-      printf("Tempo isingStep:%f\n",(float)t/CLOCKS_PER_SEC);
-    }
-    fclose(statistics);
+    t = clock();
+    monte_carlo_execution(&X,Temperatura,M,N,steps);
+    t = clock() - t;
+    printf("Tempo isingStep:%f\n",(float)t/CLOCKS_PER_SEC);
+    
     #ifdef DEBUG
     printf("X\nenergy: %f\n",X.energy);
     //print_model(&X,N);
