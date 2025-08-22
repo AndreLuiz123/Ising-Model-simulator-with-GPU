@@ -31,7 +31,6 @@ void free_spins(int **matrix, int M){
   free(matrix);
 }
 
-
 void create_spin_lattice(Ising *model, int proportion, int M, int N){
   for(int i=0; i<M; i++){
     for(int j=0; j<N; j++){
@@ -183,36 +182,30 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
     }
 }
 
-void monte_carlo_execution(Ising *model, int Temperatura, int M, int N,int steps, bool torus){
-    FILE *statistics;
+void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int steps, bool torus, char *id_execution){
 
-    int status = mkdir("results", 0777);
+  FILE *statistics;
+  char statistics_file_name[130];
+  sprintf(statistics_file_name, "%s/monte_carlo_T_%.2f_%s.txt", id_execution, Temperatura, id_execution);
 
-    if (status == 0) {
-      printf("Novo diretório results criado com sucesso!\n");
-    } else {
-      perror("Verificando se diretório 'results' já existe. Se existir, as estatísticas serão enviadas para ele, se não, houve um erro na criação do diretório");
-    }
-
-    statistics = fopen("results/statistics.txt","w");
+  statistics = fopen(statistics_file_name,"w");
     if(statistics == NULL){
       printf("Can't open file");
     }else{
       for(int i=0; i<steps; i++){
         isingStep(model,Temperatura,M,N, torus);
-        //Escreve no documento
-        char mensagem[50];
-        sprintf(mensagem, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
-        fputs(mensagem, statistics);
+        fprintf(statistics, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
       }    
     }
     fclose(statistics); 
 }
 
-void specific_heat_calculation(Ising *model, int M, int N, int steps, bool torus, int proportion, double temp0, double tempMax, double tempAdd){
+void specific_heat_calculation(Ising *model, int M, int N, int steps, bool torus, int proportion, double temp0, double tempMax, double tempAdd, char *id_execution){
     
     FILE *statistics;
-    statistics = fopen("specific_heat.txt","w");
+    char statistics_file_name[130];
+    sprintf(statistics_file_name, "%s/specific_heat_%s.txt", id_execution,id_execution);
+    statistics = fopen(statistics_file_name,"w");
     if(statistics == NULL){
       printf("Can't open file");
     }else{
@@ -231,7 +224,7 @@ void specific_heat_calculation(Ising *model, int M, int N, int steps, bool torus
         
         calculate_hamiltonian(model,M,N,torus);
         
-        monte_carlo_execution(model, temp0, M, N, equilibrium_steps,torus);
+        monte_carlo_execution(model, temp0, M, N, equilibrium_steps,torus,id_execution);
         
         for(int i=0; i<specific_heat_collecting_steps; i++){
           isingStep(model,temp0,M,N,torus);
@@ -317,6 +310,20 @@ int main(int argc, char **argv) {
     X.spins = allocate_spins(M,N);
     
 
+    char id_execution[200];
+    time_t tempo_atual = time(NULL);
+    struct tm *info_tempo = localtime(&tempo_atual);
+    char time_of_exec[80];
+    strftime(time_of_exec, sizeof(time_of_exec), "___%d_%m_%Y_%H_%M_%S", info_tempo);
+    sprintf(id_execution, "M_%d_N_%d_B_%d_mcs_%d_%s", M, N, torus, mcs,time_of_exec);
+    int status = mkdir(id_execution, 0777);
+    if (status == 0) {
+      printf("Novo diretório '%s' criado com sucesso!\n",id_execution);
+    } else {
+      perror("Verificando se diretório já existe. Se existir, as estatísticas serão enviadas para ele, se não, houve um erro na criação do diretório");
+    }
+
+
     t = clock();
     create_spin_lattice(&X,proportion,M,N);
     t = clock() - t;
@@ -333,7 +340,8 @@ int main(int argc, char **argv) {
     
     //Executa o simulador
     t = clock();
-    monte_carlo_execution(&X,Temperatura,M,N,steps,torus);
+    //monte_carlo_execution(&X,Temperatura,M,N,steps,torus,id_execution);
+    specific_heat_calculation(&X, M, N, steps, torus, proportion, 0.3, 3, 0.3, id_execution);
     t = clock() - t;
     printf("Tempo isingStep:%f\n",(double)t/CLOCKS_PER_SEC);
     
