@@ -14,24 +14,24 @@ typedef struct{
   double J;
 }Ising;
 
-int ** allocate_spins(int N){
-  int **matrix = malloc(N * sizeof(int *));
-  for(int i=0; i<N; i++){
+int ** allocate_spins(int M,int N){
+  int **matrix = malloc(M * sizeof(int *));
+  for(int i=0; i<M; i++){
     matrix[i] = malloc(N * sizeof(int));
   }
   return matrix;
 }
 
-void free_spins(int **matrix, int N){
-  for(int i=0; i<N; i++){
+void free_spins(int **matrix, int M){
+  for(int i=0; i<M; i++){
     free(matrix[i]);
   }
   free(matrix);
 }
 
 
-void create_spin_lattice(Ising *model, int proportion, int N){
-  for(int i=0; i<N; i++){
+void create_spin_lattice(Ising *model, int proportion, int M, int N){
+  for(int i=0; i<M; i++){
     for(int j=0; j<N; j++){
       double random = (rand() % 1000) + 1;
       if(random >= proportion)
@@ -42,40 +42,40 @@ void create_spin_lattice(Ising *model, int proportion, int N){
   }
 }
 
-void calculate_spin_sum(Ising *model, int N){
+void calculate_spin_sum(Ising *model, int M,int N){
  model->spin_sum = 0;
- for(int i=0; i<N; i++)
+ for(int i=0; i<M; i++)
   for(int j=0; j<N; j++)
     model->spin_sum+=model->spins[i][j];
 }
 
-void calculate_hamiltonian(Ising *model, int N, double a){
+void calculate_hamiltonian(Ising *model, int M, int N, double a){
   model->energy = 0;
-  for(int i=0; i<N; i++){
+  for(int i=0; i<M; i++){
     for(int j=0; j<N; j++){
       int current_spin = model->spins[i][j];
       double J0 = model->J;
       double J1 = (1-a)*J0;
-      double J2 = -1*J0;
+      double J2 = -1*a*J0;
 
 
       model->energy += 
       J0*model->spins[i][(j+N-1)%N]*current_spin +
       J0*model->spins[i][(j+1)%N]*current_spin +
-      J1*model->spins[(i+N-1)%N][j]*current_spin +
-      J1*model->spins[(i+1)%N][j]*current_spin +
-      J2*model->spins[(i+N-2)%N][j]*current_spin +
-      J2*model->spins[(i+2)%N][j]*current_spin;
+      J1*model->spins[(i+M-1)%M][j]*current_spin +
+      J1*model->spins[(i+1)%M][j]*current_spin +
+      J2*model->spins[(i+M-2)%M][j]*current_spin +
+      J2*model->spins[(i+2)%M][j]*current_spin;
     }
   }
   model->energy*=-0.5;
 }
 
-void isingStep(Ising *X_t, double Temp, int N, double a){
+void isingStep(Ising *X_t, double Temp, int M, int N, double a){
     double dE=0, dEy=0, dEx=0;
  
     //Rotate random spin
-    int i=(rand() % N);
+    int i=(rand() % M);
     int j=(rand() % N);
     #ifdef DEBUG
     printf("Rotate (%d,%d)\n",i,j);
@@ -84,12 +84,12 @@ void isingStep(Ising *X_t, double Temp, int N, double a){
 
     double J0 = X_t->J;
     double J1 = (1-a)*J0;
-    double J2 = -1*J0;
+    double J2 = -1*a*J0;
     //Calculate delta E
 double neighbor_interaction =
     J0 * (X_t->spins[i][(j + N - 1) % N] + X_t->spins[i][(j + 1) % N]) +
-    J1 * (X_t->spins[(i + N - 1) % N][j] + X_t->spins[(i + 1) % N][j]) +
-    J2 * (X_t->spins[(i + N - 2) % N][j] + X_t->spins[(i + 2) % N][j]);
+    J1 * (X_t->spins[(i + M - 1) % M][j] + X_t->spins[(i + 1) % M][j]) +
+    J2 * (X_t->spins[(i + M - 2) % M][j] + X_t->spins[(i + 2) % M][j]);
 
     dE = 2.0 *  X_t->spins[i][j]* neighbor_interaction;
     
@@ -117,8 +117,8 @@ double neighbor_interaction =
     }
 }
 
-void print_model(Ising *X, int N){
-  for(int j=0; j<N; j++){
+void print_model(Ising *X, int M, int N){
+  for(int j=0; j<M; j++){
     for(int i=0; i<N; i++){
       if(X->spins[i][j] == -1)
         printf("%d,",X->spins[i][j]);
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 
     int proportion = 500;
     unsigned int mcs = 20000; // monte carlo per spin
-    int N = 20;
+    int N = 20, M=20;
     double Temperatura = 5;
     double a = 0;
 
@@ -156,7 +156,11 @@ int main(int argc, char **argv) {
       if(strcmp(argv[i], "-mcs") == 0){
         mcs = atoi(argv[i+1]);
       }      
-      
+
+      if(strcmp(argv[i], "-M") == 0){
+        M = atoi(argv[i+1]);
+      }
+
       if(strcmp(argv[i], "-N") == 0){
         N = atoi(argv[i+1]);
       }
@@ -174,42 +178,44 @@ int main(int argc, char **argv) {
       }
     }
 
-    X.spins = allocate_spins(N);
+    X.spins = allocate_spins(M,N);
     
-    unsigned int total_flips = mcs*N*N;
+    unsigned int total_flips = mcs*M*N;
     unsigned int equilibrium_flips = total_flips/5;
     unsigned int oficial_flips = total_flips - equilibrium_flips;
 
+    FILE *statistics2;
     //Executa o simulador
     statistics = fopen("statistics.txt","w");
+    statistics2 = fopen("energia.txt","w");
     if(statistics == NULL){
       printf("Can't open file");
     }else{
-      Temperatura = 0.03;
+      Temperatura = 0.3;
       while(Temperatura<=3){
 
         t = clock();
-        create_spin_lattice(&X,proportion,N);
+        create_spin_lattice(&X,proportion,M,N);
         t = clock() - t;
         printf("Tempo create_lattice:%f\n",(double)t/CLOCKS_PER_SEC);
         X.energy = 0;
         X.spin_sum = 0;
         
-        calculate_hamiltonian(&X,N,a);
+        calculate_hamiltonian(&X,M,N,a);
         #ifdef DEBUG
         printf("X\nenergy: %f\n",X.energy);
         //print_model(&X,N);
         #endif
         
         for(int i=0; i<equilibrium_flips; i++){
-          isingStep(&X,Temperatura,N,a);          
+          isingStep(&X,Temperatura,M,N,a);          
         }
         double mean_energy = 0;
         double mean_square_energy = 0;
 
         t = clock();
         for(int i=0; i<oficial_flips; i++){
-          isingStep(&X,Temperatura,N,a);
+          isingStep(&X,Temperatura,M,N,a);
           mean_energy += X.energy;
           mean_square_energy += X.energy*X.energy;
           //Escreve no documento
@@ -218,15 +224,16 @@ int main(int argc, char **argv) {
         printf("Tempo isingStep:%f\n",(double)t/CLOCKS_PER_SEC);
         mean_energy/=oficial_flips;
         mean_square_energy/=oficial_flips;
-        double calor_especifico = (mean_square_energy - mean_energy*mean_energy)/(Temperatura*Temperatura*N*N);
+        double calor_especifico = (mean_square_energy - mean_energy*mean_energy)/(Temperatura*Temperatura*M*N);
         char mensagem[50];
         sprintf(mensagem, "%.3f,%.5f\n", Temperatura, calor_especifico);
         fputs(mensagem, statistics);
         printf("Temperatura:%f\n",Temperatura);
-        Temperatura+=0.03;
+        Temperatura+=0.11;
       }
     }
     fclose(statistics);
+    fclose(statistics2);
     #ifdef DEBUG
     printf("X\nenergy: %f\n",X.energy);
     //print_model(&X,N);
