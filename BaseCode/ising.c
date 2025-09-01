@@ -182,7 +182,7 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
     }
 }
 
-void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int steps, bool torus, char *id_execution){
+void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int steps, bool swips, bool torus, char *id_execution){
 
   FILE *statistics;
   char statistics_file_name[130];
@@ -192,17 +192,28 @@ void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int st
     if(statistics == NULL){
       printf("Can't open file");
     }else{
+      int count = 0;
+      int flips_per_swip = M*N;
       for(int i=0; i<steps; i++){
         isingStep(model,Temperatura,M,N, torus);
-        fprintf(statistics, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+        if(swips){
+          count++;
+          if(count == flips_per_swip){
+            fprintf(statistics, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+            count = 0;
+          }
+        }else{
+            fprintf(statistics, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+        }
       }    
     }
     fclose(statistics); 
 }
 
-void specific_heat_calculation(Ising *model, int M, int N, int steps, bool torus, int proportion, double temp0, double tempMax, double tempAdd, char *id_execution){
+void specific_heat_calculation(Ising *model, int M, int N, int steps, bool swips, bool torus, int proportion, double temp0, double tempMax, double tempAdd, char *id_execution){
     
     FILE *statistics;
+    FILE *statistics_monte_carlo;
     char statistics_file_name[130];
     sprintf(statistics_file_name, "%s/specific_heat_%s.txt", id_execution,id_execution);
     statistics = fopen(statistics_file_name,"w");
@@ -224,13 +235,33 @@ void specific_heat_calculation(Ising *model, int M, int N, int steps, bool torus
         
         calculate_hamiltonian(model,M,N,torus);
         
-        monte_carlo_execution(model, temp0, M, N, equilibrium_steps,torus,id_execution);
+        monte_carlo_execution(model, temp0, M, N, equilibrium_steps,swips,torus,id_execution);
         
+        char statistics_file_name[130];
+        sprintf(statistics_file_name, "%s/monte_carlo_T_%.2f_%s.txt", id_execution, temp0, id_execution);
+
+        statistics_monte_carlo = fopen(statistics_file_name,"w");
+        if(statistics == NULL){
+          printf("Can't open file");
+        }else{
+        int count = 0;
+        int flips_per_swip = M*N;
         for(int i=0; i<specific_heat_collecting_steps; i++){
-          isingStep(model,temp0,M,N,torus);
+          isingStep(model,temp0,M,N,,swips,torus);
           mean_energy += model->energy;
           mean_square_energy += model->energy*model->energy;
-        }    
+          if(swips){
+            count++;
+            if(count == flips_per_swip){
+              fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+              count = 0;
+            }
+          }else{
+              fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+          }
+        }
+        }
+        fclose(statistics_monte_carlo); 
 
         mean_energy/=specific_heat_collecting_steps;
         mean_square_energy/=specific_heat_collecting_steps;
@@ -264,6 +295,7 @@ int main(int argc, char **argv) {
     int M = 32, N = 32;
     double Temperatura = 5;
     bool torus = true;
+    bool swips = true;
 
     clock_t t,t_total;
     t_total = clock();
@@ -303,6 +335,10 @@ int main(int argc, char **argv) {
       if(strcmp(argv[i], "-B") == 0){
         torus = atoi(argv[i+1]);
       }
+
+      if(strcmp(argv[i], "-swips") == 0){
+        swips = atoi(argv[i+1]);
+      }
     }
 
     int steps = M*N*mcs;
@@ -340,8 +376,8 @@ int main(int argc, char **argv) {
     
     //Executa o simulador
     t = clock();
-    //monte_carlo_execution(&X,Temperatura,M,N,steps,torus,id_execution);
-    specific_heat_calculation(&X, M, N, steps, torus, proportion, 0.3, 3, 0.3, id_execution);
+    //monte_carlo_execution(&X,Temperatura,M,N,steps,swips,torus,id_execution);
+    specific_heat_calculation(&X, M, N, steps, swips, torus, proportion, 0.3, 3, 0.3, id_execution);
     t = clock() - t;
     printf("Tempo isingStep:%f\n",(double)t/CLOCKS_PER_SEC);
     
