@@ -439,7 +439,11 @@ int main(int argc, char **argv) {
     unsigned int mcs = 1000; //flips por spin
     int M = 32, N = 32;
     double Temperatura = 5;
+    double tempMax = 3;
+    double temp0 = 0.3;
+    double tempAdd = 0.3;
     double a = 0;
+    bool execution = true;
     bool torus = true;
     bool swips = true;
 
@@ -453,7 +457,15 @@ int main(int argc, char **argv) {
     
     for (int i = 0; i < argc; i++) {
       printf("Argumento [%d]: %s\n", i, argv[i]);
-  
+
+      if(strcmp(argv[i], "-specific_heat") == 0){
+        execution = true;
+      }  
+
+      if(strcmp(argv[i], "-monte_carlo") == 0){
+        execution = false;
+      }  
+
       if(strcmp(argv[i], "-P") == 0){
         proportion = atoi(argv[i+1]);
       }  
@@ -487,9 +499,19 @@ int main(int argc, char **argv) {
       }
 
       if(strcmp(argv[i], "-a") == 0){
-        printf("Antes a = %f\n",a);
-        a = atof(argv[i+1]);
-        printf("Depois a = %f\n",a);
+        a = atof(argv[i+1]);;
+      }
+
+      if(strcmp(argv[i], "-tempAdd") == 0){
+        tempAdd = atof(argv[i+1]);;
+      }
+      
+      if(strcmp(argv[i], "-tempMax") == 0){
+        tempMax = atof(argv[i+1]);;
+      }
+
+      if(strcmp(argv[i], "-temp0") == 0){
+        temp0 = atof(argv[i+1]);;
       }
     }
     int steps = M*N*mcs;
@@ -520,8 +542,12 @@ int main(int argc, char **argv) {
     
     //Executa o simulador
     t = clock();
-    //monte_carlo_execution(&X,Temperatura,M,N,steps,swips,a,torus,id_execution);
-    specific_heat_calculation(&X, M, N, steps, swips, torus, proportion, a, 0.3, 3, 0.3, id_execution);
+    
+    if(execution){
+      specific_heat_calculation(&X, M, N, steps, swips, torus, proportion, a, temp0, tempMax, tempAdd, id_execution);
+    }else{
+      monte_carlo_execution(&X,Temperatura,M,N,steps,swips,a,torus,id_execution);
+    }
     t = clock() - t;
     printf("Tempo isingStep:%f\n",(double)t/CLOCKS_PER_SEC);
     
