@@ -50,6 +50,63 @@ void calculate_spin_sum(Ising *model, int M, int N){
     model->spin_sum+=model->spins[i][j];
 }
 
+void calculate_hamiltonian_selke_classic_boundary(Ising *model, int M, int N, double a){
+  model->energy = 0;
+  for(int i=0; i<M; i++){
+    for(int j=0; j<N; j++){
+      int current_spin = model->spins[i][j];
+      double J0 = model->J;
+      double J1 = (1-a)*J0;
+      double J2 = -1*a*J0;
+
+
+      if(j!=0){
+        model->energy += J0*model->spins[i][j-1]*current_spin;
+      }
+      if(j!=N-1){
+        model->energy += J0*model->spins[i][j+1]*current_spin;
+      }
+
+      if(i!=0){
+        model->energy += J1*model->spins[i-1][j]*current_spin;
+      }
+      if(i!=M-1){
+        model->energy += J1*model->spins[i+1][j]*current_spin;
+      }
+
+      if(i>=2){
+        model->energy += J2*model->spins[i-2][j]*current_spin;
+      }
+      if(i<M-2){
+        model->energy += J1*model->spins[i+2][j]*current_spin;
+      }
+    }
+  }
+  model->energy*=-0.5;
+}
+
+void calculate_hamiltonian_selke_torus_boundary(Ising *model, int M, int N, double a){
+  model->energy = 0;
+  for(int i=0; i<M; i++){
+    for(int j=0; j<N; j++){
+      int current_spin = model->spins[i][j];
+      double J0 = model->J;
+      double J1 = (1-a)*J0;
+      double J2 = -1*a*J0;
+
+
+      model->energy += 
+      J0*model->spins[i][(j+N-1)%N]*current_spin +
+      J0*model->spins[i][(j+1)%N]*current_spin +
+      J1*model->spins[(i+M-1)%M][j]*current_spin +
+      J1*model->spins[(i+1)%M][j]*current_spin +
+      J2*model->spins[(i+M-2)%M][j]*current_spin +
+      J2*model->spins[(i+2)%M][j]*current_spin;
+    }
+  }
+  model->energy*=-0.5;
+}
+
 void calculate_hamiltonian_classic_boundary(Ising *model, int M, int N){
 
   model->energy = 0;
@@ -85,11 +142,19 @@ void calculate_hamiltonian_torus_boundary(Ising *model, int M, int N){
   model->energy = energy;
 }
 
-void calculate_hamiltonian(Ising *model, int M, int N, bool torus){
-  if(torus){
-    calculate_hamiltonian_torus_boundary(model, M, N);
+void calculate_hamiltonian(Ising *model, int M, int N, bool torus, double a){
+  if(a > 0){
+    if(torus){
+      calculate_hamiltonian_selke_torus_boundary(model, M, N, a);
+    }else{
+      calculate_hamiltonian_selke_classic_boundary(model, M, N, a);
+    }
   }else{
-    calculate_hamiltonian_classic_boundary(model, M, N);
+    if(torus){
+      calculate_hamiltonian_torus_boundary(model, M, N);
+    }else{
+      calculate_hamiltonian_classic_boundary(model, M, N);
+    }
   }
 }
 
@@ -123,6 +188,38 @@ double calculate_dE_classic_boundary(Ising *model ,int i, int j, int M, int N){
     return dE;
 }
 
+double calculate_dE_selke_classic_boundary(Ising *model ,int i, int j, int M, int N, double a){
+    double dE = 0;
+    //Calculate delta E
+    double J0 = model->J;
+    double J1 = (1-a)*J0;
+    double J2 = -1*a*J0;
+    //Calculate delta E
+    double neighbor_interaction = 0;
+    if(j!=0){
+      neighbor_interaction += J0 * model->spins[i][j-1];
+    }
+    if(j!=N-1){
+      neighbor_interaction += J0 * model->spins[i][j+1];
+    }
+    if(i!=0){
+      neighbor_interaction += J1 * model->spins[i-1][j];
+    }
+    if(i!=M-1){
+      neighbor_interaction += J1 * model->spins[i+1][j];
+    }
+    if(i>=2){
+      neighbor_interaction += J2 * model->spins[i-2][j];
+    }
+    if(i<M-2){
+      neighbor_interaction += J2 * model->spins[i+2][j];
+    }
+
+    dE = 2.0 *  model->spins[i][j]* neighbor_interaction;
+
+    return dE;
+}
+
 double calculate_dE_torus_boundary(Ising *model ,int i, int j, int M, int N){
     double dE = 0;
     //Calculate delta E
@@ -135,17 +232,42 @@ double calculate_dE_torus_boundary(Ising *model ,int i, int j, int M, int N){
     return dE;
 }
 
-double calculate_dE(Ising *model ,int i, int j, int M, int N, bool torus){
+double calculate_dE_selke_torus_boundary(Ising *model ,int i, int j, int M, int N, double a){
+    double dE = 0;
+    //Calculate delta E
+    double J0 = model->J;
+    double J1 = (1-a)*J0;
+    double J2 = -1*a*J0;
+    //Calculate delta E
+    double neighbor_interaction =
+    J0 * (model->spins[i][(j + N - 1) % N] + model->spins[i][(j + 1) % N]) +
+    J1 * (model->spins[(i + M - 1) % M][j] + model->spins[(i + 1) % M][j]) +
+    J2 * (model->spins[(i + M - 2) % M][j] + model->spins[(i + 2) % M][j]);
+
+    dE = 2.0 *  model->spins[i][j]* neighbor_interaction;
+
+    return dE;
+}
+
+double calculate_dE(Ising *model ,int i, int j, int M, int N, double a, bool torus){
   double result = 0;
-  if(torus){
-    result = calculate_dE_torus_boundary(model, i, j, M, N);
+  if(a > 0){
+    if(torus){
+      result = calculate_dE_selke_torus_boundary(model, i, j, M, N, a);
+    }else{
+      result = calculate_dE_selke_classic_boundary(model, i, j, M, N, a);
+    }
   }else{
-    result = calculate_dE_classic_boundary(model, i, j, M, N);
+    if(torus){
+      result = calculate_dE_torus_boundary(model, i, j, M, N);
+    }else{
+      result = calculate_dE_classic_boundary(model, i, j, M, N);
+    }
   }
   return result;
 }
 
-void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
+void isingStep(Ising *X_t, double Temp, int M, int N, double a, bool torus){
     double dE=0;
  
     //Rotate random spin
@@ -156,7 +278,7 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
     #endif
     int current_Y_spin = X_t->spins[i][j]*-1;
 
-    dE = calculate_dE(X_t, i, j, M, N, torus);
+    dE = calculate_dE(X_t, i, j, M, N, a, torus);
     
     //Metropolis step
     if(dE<0){
@@ -182,11 +304,18 @@ void isingStep(Ising *X_t, double Temp, int M, int N, bool torus){
     }
 }
 
-void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int steps, bool swips, bool torus, char *id_execution){
+void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int steps, bool swips, double a,bool torus, char *id_execution){
 
   FILE *statistics;
   char statistics_file_name[130];
   sprintf(statistics_file_name, "%s/monte_carlo_T_%.2f_%s.txt", id_execution, Temperatura, id_execution);
+
+  calculate_hamiltonian(model,M,N,torus,a);
+  calculate_spin_sum(model,M,N);
+  #ifdef DEBUG
+  printf("X\nenergy: %f\n",X.energy);
+  //print_model(&X,N);
+  #endif
 
   statistics = fopen(statistics_file_name,"w");
     if(statistics == NULL){
@@ -195,7 +324,7 @@ void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int st
       int count = 0;
       int flips_per_swip = M*N;
       for(int i=0; i<steps; i++){
-        isingStep(model,Temperatura,M,N, torus);
+        isingStep(model,Temperatura,M,N,a,torus);
         if(swips){
           count++;
           if(count == flips_per_swip){
@@ -210,7 +339,7 @@ void monte_carlo_execution(Ising *model, double Temperatura, int M, int N,int st
     fclose(statistics); 
 }
 
-void specific_heat_calculation(Ising *model, int M, int N, int steps, bool swips, bool torus, int proportion, double temp0, double tempMax, double tempAdd, char *id_execution){
+void specific_heat_calculation(Ising *model, int M, int N, int steps, bool swips, bool torus, int proportion, double a, double temp0, double tempMax, double tempAdd, char *id_execution){
     
     FILE *statistics;
     FILE *statistics_monte_carlo;
@@ -233,10 +362,9 @@ void specific_heat_calculation(Ising *model, int M, int N, int steps, bool swips
         model->energy = 0;
         model->spin_sum = 0;
         
-        calculate_hamiltonian(model,M,N,torus);
-        
-        monte_carlo_execution(model, temp0, M, N, equilibrium_steps,swips,torus,id_execution);
-        
+        calculate_hamiltonian(model,M,N,torus,a);
+        calculate_spin_sum(model,M,N);
+
         char statistics_file_name[130];
         sprintf(statistics_file_name, "%s/monte_carlo_T_%.2f_%s.txt", id_execution, temp0, id_execution);
 
@@ -244,22 +372,39 @@ void specific_heat_calculation(Ising *model, int M, int N, int steps, bool swips
         if(statistics == NULL){
           printf("Can't open file");
         }else{
-        int count = 0;
-        int flips_per_swip = M*N;
-        for(int i=0; i<specific_heat_collecting_steps; i++){
-          isingStep(model,temp0,M,N,,swips,torus);
-          mean_energy += model->energy;
-          mean_square_energy += model->energy*model->energy;
-          if(swips){
-            count++;
-            if(count == flips_per_swip){
-              fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
-              count = 0;
+
+          int count = 0;
+          int flips_per_swip = M*N;
+          //monte_carlo_execution(model, temp0, M, N, equilibrium_steps,swips,a,torus,id_execution);
+          for(int i=0; i<equilibrium_steps; i++){
+            isingStep(model,temp0,M,N,a,torus);
+            mean_energy += model->energy;
+            mean_square_energy += model->energy*model->energy;
+            if(swips){
+              count++;
+              if(count == flips_per_swip){
+                fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+                count = 0;
+              }
+            }else{
+                fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
             }
-          }else{
-              fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
           }
-        }
+
+          for(int i=0; i<specific_heat_collecting_steps; i++){
+            isingStep(model,temp0,M,N,a,torus);
+            mean_energy += model->energy;
+            mean_square_energy += model->energy*model->energy;
+            if(swips){
+              count++;
+              if(count == flips_per_swip){
+                fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+                count = 0;
+              }
+            }else{
+                fprintf(statistics_monte_carlo, "%d,%.5f,%.3f\n", i, model->energy, model->spin_sum/(M*N));
+            }
+          }
         }
         fclose(statistics_monte_carlo); 
 
@@ -294,6 +439,7 @@ int main(int argc, char **argv) {
     unsigned int mcs = 1000; //flips por spin
     int M = 32, N = 32;
     double Temperatura = 5;
+    double a = 0;
     bool torus = true;
     bool swips = true;
 
@@ -339,8 +485,13 @@ int main(int argc, char **argv) {
       if(strcmp(argv[i], "-swips") == 0){
         swips = atoi(argv[i+1]);
       }
-    }
 
+      if(strcmp(argv[i], "-a") == 0){
+        printf("Antes a = %f\n",a);
+        a = atof(argv[i+1]);
+        printf("Depois a = %f\n",a);
+      }
+    }
     int steps = M*N*mcs;
 
     X.spins = allocate_spins(M,N);
@@ -366,18 +517,11 @@ int main(int argc, char **argv) {
     printf("Tempo create_lattice:%f\n",(double)t/CLOCKS_PER_SEC);
     X.energy = 0;
     X.spin_sum = 0;
-
-    calculate_hamiltonian(&X,M,N,torus);
-    calculate_spin_sum(&X,M,N);
-    #ifdef DEBUG
-    printf("X\nenergy: %f\n",X.energy);
-    //print_model(&X,N);
-    #endif
     
     //Executa o simulador
     t = clock();
-    //monte_carlo_execution(&X,Temperatura,M,N,steps,swips,torus,id_execution);
-    specific_heat_calculation(&X, M, N, steps, swips, torus, proportion, 0.3, 3, 0.3, id_execution);
+    //monte_carlo_execution(&X,Temperatura,M,N,steps,swips,a,torus,id_execution);
+    specific_heat_calculation(&X, M, N, steps, swips, torus, proportion, a, 0.3, 3, 0.3, id_execution);
     t = clock() - t;
     printf("Tempo isingStep:%f\n",(double)t/CLOCKS_PER_SEC);
     
